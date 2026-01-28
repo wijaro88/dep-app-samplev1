@@ -134,49 +134,24 @@ def detectar_alertas_velocidad(df, umbral=50):
 # NO espera a que se renderice el dashboard
 
 def iniciar_guardado_automatico():
-    """Inicia el proceso de guardado de datos de la API apenas se levanta el servidor"""
-    usuario = "wsascension"
-    clave = "Ascension24!"
-    empresa = "ASCENSION"
-    
-    url = "https://www.worldfleetlog.com/WebFleetStationServices/Online.asmx"
-    
-    soap_body = f"""<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-               xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-  <soap:Header>
-    <LoginInfo xmlns="http://tempuri.org/">
-      <Username>{usuario}</Username>
-      <Password>{clave}</Password>
-      <Company>{empresa}</Company>
-    </LoginInfo>
-  </soap:Header>
-  <soap:Body>
-    <GetCarsInfo xmlns="http://tempuri.org/" />
-  </soap:Body>
-</soap:Envelope>"""
-    
-    headers = {
-        'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://tempuri.org/GetCarsInfo'
-    }
-    
+    """Guarda automáticamente los datos de la API en la BD cada vez que se llama"""
     try:
-        response = requests.post(url, data=soap_body, headers=headers, timeout=30)
-        
-        if response.status_code == 200:
-            df = parse_response(response.content)
-            if df is not None and not df.empty:
-                db.insertar_posiciones(df)
-                # Detectar alertas con umbral por defecto
-                detectar_alertas_velocidad(df, umbral=50)
-                db.actualizar_estadisticas_sesion()
-                print(f"[{datetime.now()}] ✅ Datos guardados automáticamente en BD ({len(df)} registros)")
+        # Obtener datos desde la API (respeta cache de 65s si aplica)
+        datos = obtener_datos_api()
+        if datos is not None and not datos.empty:
+            # Guardar en BD
+            insertar_posiciones(datos)
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            print(f"[{timestamp}] ✅ Datos guardados automáticamente en BD ({len(datos)} registros)")
+            return True
         else:
-            print(f"[{datetime.now()}] ⚠️ API no disponible (código {response.status_code})")
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+            print(f"[{timestamp}] ⚠️ API no disponible")
+            return False
     except Exception as e:
-        print(f"[{datetime.now()}] ❌ Error al consultar API: {str(e)}")
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+        print(f"[{timestamp}] ❌ Error guardando datos: {e}")
+        return False
 
 # Ejecutar guardado automático SOLO una vez al inicio del servidor
 if 'guardado_inicial' not in st.session_state:
@@ -1729,6 +1704,8 @@ if auto_refresh:
         # NO hacer st.rerun() para que la página permanezca estática
     elif tiempo_transcurrido >= 60:
         # Modo normal: actualizar cada 60 segundos (sincronizado con límite de API)
+        # Guardar datos automáticamente
+        iniciar_guardado_automatico()
         st.session_state.ultimo_refresh = datetime.now()
         time.sleep(0.1)  # Pequeña pausa para estabilizar
         st.rerun()
