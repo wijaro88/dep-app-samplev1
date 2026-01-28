@@ -7,6 +7,7 @@ import time
 import numpy as np
 from db_manager_sqlserver import VehiculosDB
 from config_db import get_api_config
+from timezone_utils import get_local_now
 import streamlit.components.v1 as components
 import folium
 from streamlit_folium import st_folium

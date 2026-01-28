@@ -6,6 +6,7 @@ import pymssql
 from datetime import datetime, time as dt_time
 import pandas as pd
 from config_db import get_connection_string
+from timezone_utils import get_local_now
 
 class VehiculosDB:
     """Clase para gestionar la base de datos de vehículos en SQL Server"""
@@ -26,7 +27,7 @@ class VehiculosDB:
 
     def _get_sesion_actual(self):
         """Determina si estamos en sesión AM o PM"""
-        hora_actual = datetime.now().time()
+        hora_actual = get_local_now().time()
         mediodia = dt_time(12, 0, 0)
         return "AM" if hora_actual < mediodia else "PM"
     
@@ -46,7 +47,7 @@ class VehiculosDB:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        timestamp = datetime.now()
+        timestamp = get_local_now()
         sesion = self._get_sesion_actual()
         fecha = self._to_sql_date(timestamp.date())
 
@@ -116,7 +117,7 @@ class VehiculosDB:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        timestamp = datetime.now()
+        timestamp = get_local_now()
         sesion = self._get_sesion_actual()
         fecha = self._to_sql_date(timestamp.date())
 
@@ -138,7 +139,7 @@ class VehiculosDB:
         conn = self._get_connection()
 
         sesion = self._get_sesion_actual()
-        fecha = self._to_sql_date(datetime.now().date())
+        fecha = self._to_sql_date(get_local_now().date())
 
         query = '''
         SELECT * FROM posiciones_vehiculos
@@ -158,7 +159,7 @@ class VehiculosDB:
         """Obtiene todas las posiciones de los últimos N días"""
         conn = self._get_connection()
 
-        fecha_limite = self._to_sql_date((datetime.now() - pd.Timedelta(days=dias)).date())
+        fecha_limite = self._to_sql_date((get_local_now() - pd.Timedelta(days=dias)).date())
 
         query = '''
         SELECT * FROM posiciones_vehiculos
@@ -181,7 +182,7 @@ class VehiculosDB:
         if sesion is None:
             sesion = self._get_sesion_actual()
         if fecha is None:
-            fecha = self._to_sql_date(datetime.now().date())
+            fecha = self._to_sql_date(get_local_now().date())
 
         query = '''
         SELECT * FROM posiciones_vehiculos
@@ -201,7 +202,7 @@ class VehiculosDB:
         """Obtiene alertas de los últimos X minutos"""
         conn = self._get_connection()
 
-        tiempo_limite = datetime.now() - pd.Timedelta(minutes=minutos)
+        tiempo_limite = get_local_now() - pd.Timedelta(minutes=minutos)
 
         if solo_pendientes:
             query = '''
@@ -232,7 +233,7 @@ class VehiculosDB:
         cursor = conn.cursor()
 
         sesion = self._get_sesion_actual()
-        fecha = self._to_sql_date(datetime.now().date())
+        fecha = self._to_sql_date(get_local_now().date())
 
         # Total de registros
         cursor.execute('''
@@ -268,8 +269,8 @@ class VehiculosDB:
     def registrar_sesion(self):
         """Registra el inicio de una sesión"""
         sesion = self._get_sesion_actual()
-        fecha = self._to_sql_date(datetime.now().date())
-        timestamp = datetime.now()
+        fecha = self._to_sql_date(get_local_now().date())
+        timestamp = get_local_now()
 
         try:
             conn = self._get_connection()
@@ -308,7 +309,7 @@ class VehiculosDB:
             stats['total_vehiculos'],
             stats['total_registros'],
             stats['total_alertas'],
-            datetime.now(),
+            get_local_now(),
             stats['fecha'],
             stats['sesion']
         ))
@@ -321,7 +322,7 @@ class VehiculosDB:
         conn = self._get_connection()
 
         sesion = self._get_sesion_actual()
-        fecha = self._to_sql_date(datetime.now().date())
+        fecha = self._to_sql_date(get_local_now().date())
 
         query = '''
         SELECT DISTINCT vehiculo
@@ -343,7 +344,7 @@ class VehiculosDB:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        fecha_atencion = datetime.now()
+        fecha_atencion = get_local_now()
 
         cursor.execute('''
         UPDATE alertas_velocidad
@@ -374,7 +375,7 @@ class VehiculosDB:
         """Obtiene alertas atendidas de los últimos X días"""
         conn = self._get_connection()
 
-        fecha_limite = self._to_sql_date((datetime.now() - pd.Timedelta(days=dias)).date())
+        fecha_limite = self._to_sql_date((get_local_now() - pd.Timedelta(days=dias)).date())
 
         query = '''
         SELECT * FROM alertas_velocidad
@@ -535,7 +536,7 @@ class VehiculosDB:
         conn = self._get_connection()
         cursor = conn.cursor()
 
-        fecha_atencion = datetime.now()
+        fecha_atencion = get_local_now()
 
         cursor.execute('''
         UPDATE alertas_geocerca
@@ -547,3 +548,4 @@ class VehiculosDB:
 
         conn.commit()
         conn.close()
+
