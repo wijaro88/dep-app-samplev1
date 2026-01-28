@@ -6,6 +6,7 @@ from datetime import datetime, time as dt_time
 import pandas as pd
 import os
 import time
+from timezone_utils import get_local_now
 
 DB_PATH = os.path.join(os.path.dirname(__file__), 'vehiculos_tracking.db')
 
@@ -28,7 +29,7 @@ class VehiculosDB:
     
     def _get_sesion_actual(self):
         """Determina si estamos en sesión AM o PM"""
-        hora_actual = datetime.now().time()
+        hora_actual = get_local_now().time()
         mediodia = dt_time(12, 0, 0)
         
         if hora_actual < mediodia:
@@ -46,7 +47,7 @@ class VehiculosDB:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        timestamp = datetime.now()
+        timestamp = get_local_now()
         sesion = self._get_sesion_actual()
         fecha = timestamp.date()
         
@@ -113,7 +114,7 @@ class VehiculosDB:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        timestamp = datetime.now()
+        timestamp = get_local_now()
         sesion = self._get_sesion_actual()
         fecha = timestamp.date()
         
@@ -135,7 +136,7 @@ class VehiculosDB:
         conn = self._get_connection()
         
         sesion = self._get_sesion_actual()
-        fecha = datetime.now().date()
+        fecha = get_local_now().date()
         
         query = '''
         SELECT * FROM posiciones_vehiculos
@@ -156,7 +157,7 @@ class VehiculosDB:
         """Obtiene todas las posiciones de los últimos N días"""
         conn = self._get_connection()
         
-        fecha_limite = (datetime.now() - pd.Timedelta(days=dias)).date()
+        fecha_limite = (get_local_now() - pd.Timedelta(days=dias)).date()
         
         query = '''
         SELECT * FROM posiciones_vehiculos
@@ -180,7 +181,7 @@ class VehiculosDB:
         if sesion is None:
             sesion = self._get_sesion_actual()
         if fecha is None:
-            fecha = datetime.now().date()
+            fecha = get_local_now().date()
         
         query = '''
         SELECT * FROM posiciones_vehiculos
@@ -200,7 +201,7 @@ class VehiculosDB:
         """Obtiene alertas de los últimos X minutos"""
         conn = self._get_connection()
         
-        tiempo_limite = datetime.now() - pd.Timedelta(minutes=minutos)
+        tiempo_limite = get_local_now() - pd.Timedelta(minutes=minutos)
         
         if solo_pendientes:
             query = '''
@@ -233,7 +234,7 @@ class VehiculosDB:
         cursor = conn.cursor()
         
         sesion = self._get_sesion_actual()
-        fecha = datetime.now().date()
+        fecha = get_local_now().date()
         
         # Total de registros
         cursor.execute('''
@@ -269,8 +270,8 @@ class VehiculosDB:
     def registrar_sesion(self):
         """Registra el inicio de una sesión con retry logic"""
         sesion = self._get_sesion_actual()
-        fecha = datetime.now().date()
-        timestamp = datetime.now()
+        fecha = get_local_now().date()
+        timestamp = get_local_now()
         
         # Retry logic con exponential backoff
         max_intentos = 3
@@ -322,7 +323,7 @@ class VehiculosDB:
             stats['total_vehiculos'],
             stats['total_registros'],
             stats['total_alertas'],
-            datetime.now(),
+            get_local_now(),
             stats['fecha'],
             stats['sesion']
         ))
@@ -335,7 +336,7 @@ class VehiculosDB:
         conn = self._get_connection()
         
         sesion = self._get_sesion_actual()
-        fecha = datetime.now().date()
+        fecha = get_local_now().date()
         
         query = '''
         SELECT DISTINCT vehiculo 
@@ -357,7 +358,7 @@ class VehiculosDB:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        fecha_atencion = datetime.now()
+        fecha_atencion = get_local_now()
         
         cursor.execute('''
         UPDATE alertas_velocidad
@@ -388,7 +389,7 @@ class VehiculosDB:
         """Obtiene alertas atendidas de los últimos X días"""
         conn = self._get_connection()
         
-        fecha_limite = (datetime.now() - pd.Timedelta(days=dias)).date()
+        fecha_limite = (get_local_now() - pd.Timedelta(days=dias)).date()
         
         query = '''
         SELECT * FROM alertas_velocidad
@@ -545,7 +546,7 @@ class VehiculosDB:
         conn = self._get_connection()
         cursor = conn.cursor()
         
-        fecha_atencion = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        fecha_atencion = get_local_now().strftime('%Y-%m-%d %H:%M:%S')
         
         cursor.execute('''
         UPDATE alertas_geocerca
