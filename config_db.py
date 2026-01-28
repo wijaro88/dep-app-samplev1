@@ -3,10 +3,36 @@ Configuración de conexión a SQL Server y API
 Lee desde variables de entorno (.env) o Streamlit secrets
 """
 import os
+import platform
 from dotenv import load_dotenv
 
 # Cargar variables de entorno desde .env
 load_dotenv()
+
+def get_sql_driver():
+    """
+    Detecta el driver ODBC correcto según el sistema operativo
+    """
+    system = platform.system()
+    
+    if system == 'Windows':
+        return '{SQL Server}'
+    else:  # Linux/Mac
+        # Intentar drivers en orden de preferencia
+        import pyodbc
+        available_drivers = [x for x in pyodbc.drivers()]
+        
+        # Preferir ODBC Driver 18, luego 17
+        for driver in ['{ODBC Driver 18 for SQL Server}', '{ODBC Driver 17 for SQL Server}']:
+            if driver in available_drivers:
+                return driver
+        
+        # Fallback a FreeTDS si está disponible
+        if '{FreeTDS}' in available_drivers:
+            return '{FreeTDS}'
+        
+        # Si no hay ninguno disponible, retornar el preferido y dejar que falle con error claro
+        return '{ODBC Driver 18 for SQL Server}'
 
 def get_sql_config():
     """
@@ -14,17 +40,19 @@ def get_sql_config():
     1. Streamlit secrets (para deploy en cloud)
     2. Variables de entorno (.env para desarrollo local)
     """
+    driver = get_sql_driver()
+    
     try:
         # Intentar cargar desde Streamlit secrets
         import streamlit as st
-        if hasattr(st, 'secrets') and 'sql_server' in st.secrets:
+        if hasattr(st, 'secrets') and 'sqlserver' in st.secrets:
             return {
-                'server': st.secrets['sql_server']['server'],
-                'port': int(st.secrets['sql_server']['port']),
-                'database': st.secrets['sql_server']['database'],
-                'username': st.secrets['sql_server']['username'],
-                'password': st.secrets['sql_server']['password'],
-                'driver': st.secrets['sql_server'].get('driver', '{SQL Server}')
+                'server': st.secrets['sqlserver']['server'],
+                'port': int(st.secrets['sqlserver']['port']),
+                'database': st.secrets['sqlserver']['database'],
+                'username': st.secrets['sqlserver']['username'],
+                'password': st.secrets['sqlserver']['password'],
+                'driver': driver
             }
     except:
         pass
@@ -36,7 +64,7 @@ def get_sql_config():
         'database': os.getenv('SQL_DATABASE', 'ciex'),
         'username': os.getenv('SQL_USERNAME', 'jguzman'),
         'password': os.getenv('SQL_PASSWORD', 'Df2kS5LR6rpQ'),
-        'driver': '{' + os.getenv('SQL_DRIVER', 'SQL Server') + '}'
+        'driver': driver
     }
 
 def get_api_config():
