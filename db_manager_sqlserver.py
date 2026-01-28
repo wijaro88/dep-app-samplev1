@@ -2,7 +2,7 @@
 Módulo para gestión de base de datos SQL Server del tracking de vehículos
 Migrado desde SQLite a SQL Server
 """
-import pyodbc
+import pymssql
 from datetime import datetime, time as dt_time
 import pandas as pd
 from config_db import get_connection_string
@@ -11,11 +11,18 @@ class VehiculosDB:
     """Clase para gestionar la base de datos de vehículos en SQL Server"""
 
     def __init__(self):
-        self.connection_string = get_connection_string()
+        self.config = get_connection_string()
 
     def _get_connection(self):
         """Obtiene una conexión a SQL Server"""
-        return pyodbc.connect(self.connection_string, timeout=30)
+        return pymssql.connect(
+            server=self.config['server'],
+            port=self.config['port'],
+            user=self.config['username'],
+            password=self.config['password'],
+            database=self.config['database'],
+            timeout=30
+        )
 
     def _get_sesion_actual(self):
         """Determina si estamos en sesión AM o PM"""

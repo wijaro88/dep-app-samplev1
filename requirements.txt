@@ -3,6 +3,6 @@ pandas
 folium
 streamlit-folium
 openpyxl
-pyodbc
+pymssql
 python-dotenv
 lxml

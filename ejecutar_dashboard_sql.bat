@@ -14,6 +14,6 @@ cd /d "%~dp0"
 cd ..\..
 call .venv\Scripts\activate
 cd data_dash_streamlit\programas_ET
-streamlit run dashboard_vehiculos_sql2.py
+streamlit run dashboard_vehiculos_sql.py
 
 pause
