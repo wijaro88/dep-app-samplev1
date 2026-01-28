@@ -74,43 +74,43 @@ class VehiculosDB:
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ''', (
                             timestamp,
-                    row['vehiculo'],
-                    row['latitud'],
-                    row['longitud'],
-                    row['velocidad'],
-                    row['kilometraje'],
-                    row['estado_online'],
-                    row['estado_gps'],
-                    row['evento'],
-                    row['satelites'],
-                    row['region'],
-                    row['hora_evento'],
-                    sesion,
-                    fecha
-                ))
-                
-                if cursor.rowcount > 0:
-                    registros_insertados += 1
-                    
-                    # Verificar geocerca
-                    dentro, nombre_geocerca = self.verificar_geocerca(
-                        row['vehiculo'], 
-                        row['latitud'], 
-                        row['longitud']
-                    )
-                    
-                    if not dentro and nombre_geocerca:
-                        # Vehículo fuera de su geocerca - registrar alerta
-                        alerta_id = self.registrar_alerta_geocerca(
-                            timestamp,
                             row['vehiculo'],
-                            nombre_geocerca,
                             row['latitud'],
-                            row['longitud']
-                        )
-                        if alerta_id:
-                            alertas_geocerca += 1
-                    
+                            row['longitud'],
+                            row['velocidad'],
+                            row['kilometraje'],
+                            row['estado_online'],
+                            row['estado_gps'],
+                            row['evento'],
+                            row['satelites'],
+                            row['region'],
+                            row['hora_evento'],
+                            sesion,
+                            fecha
+                        ))
+                        
+                        if cursor.rowcount > 0:
+                            registros_insertados += 1
+                            
+                            # Verificar geocerca
+                            dentro, nombre_geocerca = self.verificar_geocerca(
+                                row['vehiculo'], 
+                                row['latitud'], 
+                                row['longitud']
+                            )
+                            
+                            if not dentro and nombre_geocerca:
+                                # Vehículo fuera de su geocerca - registrar alerta
+                                alerta_id = self.registrar_alerta_geocerca(
+                                    timestamp,
+                                    row['vehiculo'],
+                                    nombre_geocerca,
+                                    row['latitud'],
+                                    row['longitud']
+                                )
+                                if alerta_id:
+                                    alertas_geocerca += 1
+                        
                     except Exception as e:
                         print(f"Error insertando registro para {row['vehiculo']}: {e}")
                         continue
