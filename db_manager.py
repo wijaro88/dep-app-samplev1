@@ -47,21 +47,18 @@ class VehiculosDB:
         Args:
             df: DataFrame con las columnas: vehiculo, latitud, longitud, velocidad, etc.
         """
-        max_reintentos = 3
+        max_reintentos = 5
+        registros_insertados = 0
+        alertas_geocerca = 0
+        
+        timestamp = datetime.now()
+        sesion = self._get_sesion_actual()
+        fecha = timestamp.date()
+        
         for intento in range(max_reintentos):
             try:
                 conn = self._get_connection()
                 cursor = conn.cursor()
-                
-                timestamp = datetime.now()
-                sesion = self._get_sesion_actual()
-                fecha = timestamp.date()
-                
-                registros_insertados = 0
-                alertas_geocerca = 0
-                
-                # Usar transacción para todo el lote
-                conn.execute('BEGIN IMMEDIATE')
                 
                 for _, row in df.iterrows():
                     try:
@@ -110,29 +107,38 @@ class VehiculosDB:
                                 if alerta_id:
                                     alertas_geocerca += 1
                         
+                    except sqlite3.OperationalError as e:
+                        if 'locked' in str(e).lower():
+                            # Ignorar este registro y continuar
+                            continue
+                        else:
+                            print(f"Error insertando registro para {row['vehiculo']}: {e}")
+                            continue
                     except Exception as e:
                         print(f"Error insertando registro para {row['vehiculo']}: {e}")
                         continue
                 
                 conn.commit()
                 conn.close()
-                
                 return registros_insertados, alertas_geocerca
                 
             except sqlite3.OperationalError as e:
                 if 'locked' in str(e).lower() and intento < max_reintentos - 1:
-                    print(f"Base de datos bloqueada, reintentando en {intento + 1}s... (intento {intento + 1}/{max_reintentos})")
-                    time.sleep(intento + 1)
+                    time.sleep(0.5 * (intento + 1))
                     continue
                 else:
-                    raise
+                    print(f"Error en inserción masiva: {e}")
+                    break
+            except Exception as e:
+                print(f"Error general en inserción: {e}")
+                break
             finally:
                 try:
                     conn.close()
                 except:
                     pass
         
-        return 0, 0
+        return registros_insertados, alertas_geocerca
     
     def insertar_alerta(self, vehiculo, velocidad, latitud, longitud, evento, umbral):
         """Inserta una alerta de velocidad"""
