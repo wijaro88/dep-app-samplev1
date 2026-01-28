@@ -17,12 +17,8 @@ class VehiculosDB:
         self._asegurar_db_existe()
     
     def _get_connection(self):
-        """Obtiene una conexión a la base de datos con timeout y configuración para concurrencia"""
-        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
-        # Habilitar WAL mode para mejor concurrencia
-        conn.execute('PRAGMA journal_mode=WAL')
-        conn.execute('PRAGMA busy_timeout=30000')
-        return conn
+        """Obtiene una conexión a la base de datos con timeout"""
+        return sqlite3.connect(self.db_path, timeout=30.0)
     
     def _asegurar_db_existe(self):
         """Asegura que la base de datos existe"""
@@ -47,96 +43,68 @@ class VehiculosDB:
         Args:
             df: DataFrame con las columnas: vehiculo, latitud, longitud, velocidad, etc.
         """
-        max_reintentos = 5
-        registros_insertados = 0
-        alertas_geocerca = 0
+        conn = self._get_connection()
+        cursor = conn.cursor()
         
         timestamp = datetime.now()
         sesion = self._get_sesion_actual()
         fecha = timestamp.date()
         
-        for intento in range(max_reintentos):
+        registros_insertados = 0
+        alertas_geocerca = 0
+        
+        for _, row in df.iterrows():
             try:
-                conn = self._get_connection()
-                cursor = conn.cursor()
+                cursor.execute('''
+                INSERT OR IGNORE INTO posiciones_vehiculos 
+                (timestamp, vehiculo, latitud, longitud, velocidad, kilometraje,
+                 estado_online, estado_gps, evento, satelites, region, hora_evento,
+                 sesion_dia, fecha_registro)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    timestamp,
+                    row['vehiculo'],
+                    row['latitud'],
+                    row['longitud'],
+                    row['velocidad'],
+                    row['kilometraje'],
+                    row['estado_online'],
+                    row['estado_gps'],
+                    row['evento'],
+                    row['satelites'],
+                    row['region'],
+                    row['hora_evento'],
+                    sesion,
+                    fecha
+                ))
                 
-                for _, row in df.iterrows():
-                    try:
-                        cursor.execute('''
-                        INSERT OR IGNORE INTO posiciones_vehiculos 
-                        (timestamp, vehiculo, latitud, longitud, velocidad, kilometraje,
-                         estado_online, estado_gps, evento, satelites, region, hora_evento,
-                         sesion_dia, fecha_registro)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (
+                if cursor.rowcount > 0:
+                    registros_insertados += 1
+                    
+                    # Verificar geocerca
+                    dentro, nombre_geocerca = self.verificar_geocerca(
+                        row['vehiculo'], 
+                        row['latitud'], 
+                        row['longitud']
+                    )
+                    
+                    if not dentro and nombre_geocerca:
+                        # Vehículo fuera de su geocerca - registrar alerta
+                        alerta_id = self.registrar_alerta_geocerca(
                             timestamp,
                             row['vehiculo'],
+                            nombre_geocerca,
                             row['latitud'],
-                            row['longitud'],
-                            row['velocidad'],
-                            row['kilometraje'],
-                            row['estado_online'],
-                            row['estado_gps'],
-                            row['evento'],
-                            row['satelites'],
-                            row['region'],
-                            row['hora_evento'],
-                            sesion,
-                            fecha
-                        ))
-                        
-                        if cursor.rowcount > 0:
-                            registros_insertados += 1
-                            
-                            # Verificar geocerca
-                            dentro, nombre_geocerca = self.verificar_geocerca(
-                                row['vehiculo'], 
-                                row['latitud'], 
-                                row['longitud']
-                            )
-                            
-                            if not dentro and nombre_geocerca:
-                                # Vehículo fuera de su geocerca - registrar alerta
-                                alerta_id = self.registrar_alerta_geocerca(
-                                    timestamp,
-                                    row['vehiculo'],
-                                    nombre_geocerca,
-                                    row['latitud'],
-                                    row['longitud']
-                                )
-                                if alerta_id:
-                                    alertas_geocerca += 1
-                        
-                    except sqlite3.OperationalError as e:
-                        if 'locked' in str(e).lower():
-                            # Ignorar este registro y continuar
-                            continue
-                        else:
-                            print(f"Error insertando registro para {row['vehiculo']}: {e}")
-                            continue
-                    except Exception as e:
-                        print(f"Error insertando registro para {row['vehiculo']}: {e}")
-                        continue
-                
-                conn.commit()
-                conn.close()
-                return registros_insertados, alertas_geocerca
-                
-            except sqlite3.OperationalError as e:
-                if 'locked' in str(e).lower() and intento < max_reintentos - 1:
-                    time.sleep(0.5 * (intento + 1))
-                    continue
-                else:
-                    print(f"Error en inserción masiva: {e}")
-                    break
+                            row['longitud']
+                        )
+                        if alerta_id:
+                            alertas_geocerca += 1
+                    
             except Exception as e:
-                print(f"Error general en inserción: {e}")
-                break
-            finally:
-                try:
-                    conn.close()
-                except:
-                    pass
+                print(f"Error insertando registro para {row['vehiculo']}: {e}")
+        
+        conn.commit()
+        conn.close()
         
         return registros_insertados, alertas_geocerca
     
