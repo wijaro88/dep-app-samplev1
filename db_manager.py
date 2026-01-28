@@ -18,8 +18,12 @@ class VehiculosDB:
         self._asegurar_db_existe()
     
     def _get_connection(self):
-        """Obtiene una conexión a la base de datos con timeout"""
-        return sqlite3.connect(self.db_path, timeout=30.0)
+        """Obtiene una conexión a la base de datos con timeout y configuración para concurrencia"""
+        conn = sqlite3.connect(self.db_path, timeout=30.0, check_same_thread=False)
+        # Habilitar WAL mode para mejor concurrencia
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('PRAGMA busy_timeout=30000')
+        return conn
     
     def _asegurar_db_existe(self):
         """Asegura que la base de datos existe"""
@@ -44,26 +48,32 @@ class VehiculosDB:
         Args:
             df: DataFrame con las columnas: vehiculo, latitud, longitud, velocidad, etc.
         """
-        conn = self._get_connection()
-        cursor = conn.cursor()
-        
-        timestamp = get_local_now()
-        sesion = self._get_sesion_actual()
-        fecha = timestamp.date()
-        
-        registros_insertados = 0
-        alertas_geocerca = 0
-        
-        for _, row in df.iterrows():
+        max_reintentos = 3
+        for intento in range(max_reintentos):
             try:
-                cursor.execute('''
-                INSERT OR IGNORE INTO posiciones_vehiculos 
-                (timestamp, vehiculo, latitud, longitud, velocidad, kilometraje,
-                 estado_online, estado_gps, evento, satelites, region, hora_evento,
-                 sesion_dia, fecha_registro)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    timestamp,
+                conn = self._get_connection()
+                cursor = conn.cursor()
+                
+                timestamp = get_local_now()
+                sesion = self._get_sesion_actual()
+                fecha = timestamp.date()
+                
+                registros_insertados = 0
+                alertas_geocerca = 0
+                
+                # Usar transacción para todo el lote
+                conn.execute('BEGIN IMMEDIATE')
+                
+                for _, row in df.iterrows():
+                    try:
+                        cursor.execute('''
+                        INSERT OR IGNORE INTO posiciones_vehiculos 
+                        (timestamp, vehiculo, latitud, longitud, velocidad, kilometraje,
+                         estado_online, estado_gps, evento, satelites, region, hora_evento,
+                         sesion_dia, fecha_registro)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            timestamp,
                     row['vehiculo'],
                     row['latitud'],
                     row['longitud'],
@@ -101,13 +111,29 @@ class VehiculosDB:
                         if alerta_id:
                             alertas_geocerca += 1
                     
-            except Exception as e:
-                print(f"Error insertando registro para {row['vehiculo']}: {e}")
+                    except Exception as e:
+                        print(f"Error insertando registro para {row['vehiculo']}: {e}")
+                        continue
+                
+                conn.commit()
+                conn.close()
+                
+                return registros_insertados, alertas_geocerca
+                
+            except sqlite3.OperationalError as e:
+                if 'locked' in str(e).lower() and intento < max_reintentos - 1:
+                    print(f"Base de datos bloqueada, reintentando en {intento + 1}s... (intento {intento + 1}/{max_reintentos})")
+                    time.sleep(intento + 1)
+                    continue
+                else:
+                    raise
+            finally:
+                try:
+                    conn.close()
+                except:
+                    pass
         
-        conn.commit()
-        conn.close()
-        
-        return registros_insertados, alertas_geocerca
+        return 0, 0
     
     def insertar_alerta(self, vehiculo, velocidad, latitud, longitud, evento, umbral):
         """Inserta una alerta de velocidad"""
