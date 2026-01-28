@@ -17,8 +17,7 @@ def get_sql_driver():
     
     if system == 'Windows':
         return '{SQL Server}'
-    else:  # Linux/Mac
-        # Intentar drivers en orden de preferencia
+    else:  # Linux/Mac - usar FreeTDS que es compatible con Streamlit Cloud
         import pyodbc
         available_drivers = [x for x in pyodbc.drivers()]
         
@@ -27,12 +26,12 @@ def get_sql_driver():
             if driver in available_drivers:
                 return driver
         
-        # Fallback a FreeTDS si está disponible
+        # FreeTDS es el más compatible con Streamlit Cloud
         if '{FreeTDS}' in available_drivers:
             return '{FreeTDS}'
         
-        # Si no hay ninguno disponible, retornar el preferido y dejar que falle con error claro
-        return '{ODBC Driver 18 for SQL Server}'
+        # Fallback a FreeTDS sin verificación
+        return '{FreeTDS}'
 
 def get_sql_config():
     """

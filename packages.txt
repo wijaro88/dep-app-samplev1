@@ -1,1 +1,4 @@
 unixodbc-dev
+freetds-dev
+freetds-bin
+tdsodbc
